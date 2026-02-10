@@ -24,7 +24,7 @@ function renderGallery(items) {
     const isLiked = liked.includes(item.id);
     return `
       <article class="card" data-id="${item.id}">
-        <img src="${item.url}" alt="image" loading="lazy">
+        <img src="/api/i/${item.id}" alt="image" loading="lazy">
         <div class="meta">
           <span class="time">${formatTime(item.ts)}</span>
           <button class="like ${isLiked ? "liked" : ""}" data-id="${item.id}">

@@ -1,0 +1,49 @@
+export async function onRequestGet({ request, env, params }) {
+  const id = params?.id;
+  if (!id) {
+    return new Response("bad request", { status: 400 });
+  }
+  let url = "";
+  if (env?.db) {
+    const row = await env.db.prepare("SELECT url FROM images WHERE id = ?").bind(id).first();
+    url = row?.url || "";
+  }
+  if (!url && env?.kv) {
+    const v = await env.kv.get(`image:${id}`);
+    url = v ? JSON.parse(v).url : "";
+  }
+  if (!url) {
+    return new Response("not found", { status: 404 });
+  }
+  const cache = caches.default;
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const tryHosts = (u) => {
+    const host = new URL(u).host;
+    if (host === "telegra.ph") return ["https://telegra.ph", "https://te.legra.ph", "https://graph.org"];
+    if (host === "te.legra.ph") return ["https://te.legra.ph", "https://graph.org", "https://telegra.ph"];
+    if (host === "graph.org") return ["https://graph.org", "https://telegra.ph", "https://te.legra.ph"];
+    return [new URL(u).origin];
+  };
+  const hosts = tryHosts(url);
+  let res = null;
+  for (const h of hosts) {
+    const orig = new URL(url);
+    const target = `${h}${orig.pathname}`;
+    try {
+      const r = await fetch(target, { cf: { cacheTtl: 86400, cacheEverything: true } });
+      if (r.ok) {
+        res = r;
+        break;
+      }
+    } catch {}
+  }
+  if (!res) {
+    return new Response("upstream error", { status: 502 });
+  }
+  const headers = new Headers(res.headers);
+  headers.set("Cache-Control", "public, max-age=86400, immutable");
+  const out = new Response(res.body, { status: res.status, headers });
+  await cache.put(request, out.clone());
+  return out;
+}

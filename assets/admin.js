@@ -17,7 +17,7 @@ async function fetchJSON(url, opts = {}) {
 function render(items) {
   el("#adminList").innerHTML = items.map(x => `
     <div class="item" data-id="${x.id}">
-      <img src="${x.url}" alt="image">
+      <img src="/api/i/${x.id}" alt="image">
       <div class="meta">
         <span>${formatTime(x.ts)} · ❤️ ${x.likes}</span>
         <button class="btn danger" data-id="${x.id}">删除</button>
