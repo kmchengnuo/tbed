@@ -4,7 +4,10 @@ let token = "";
 let adminPages = [];
 let adminCursors = [];
 let adminPageIndex = 0;
-const adminPageSize = 20;
+const adminPageSize = 10;
+let adminTotalCount = 0;
+let adminTotalPages = 0;
+let adminD1Bound = false;
 
 function formatTime(ts) {
   const d = new Date(ts);
@@ -78,7 +81,7 @@ function updateAdminPagerUI() {
   const prev = el("#adminPrev");
   const next = el("#adminNext");
   if (prev) prev.disabled = adminPageIndex <= 0;
-  const hasNext = !!adminCursors[adminPageIndex];
+  const hasNext = adminTotalPages > 0 ? (adminPageIndex + 1 < adminTotalPages) : !!adminCursors[adminPageIndex];
   if (next) next.disabled = !hasNext;
   const prevB = el("#adminPrevBottom");
   const nextB = el("#adminNextBottom");
@@ -86,10 +89,17 @@ function updateAdminPagerUI() {
   if (nextB) nextB.disabled = !hasNext;
   const pn = el("#adminPageNumbers");
   if (pn) {
-    let html = adminPages.map((_, i) => `<button class="page-num${i === adminPageIndex ? " active" : ""}" data-idx="${i}">${i + 1}</button>`).join("");
-    if (hasNext) {
-      const nextNum = adminPages.length + 1;
-      html += `<button class="page-num" data-idx="${adminPages.length}">${nextNum}</button>`;
+    let html = "";
+    if (adminTotalPages > 0) {
+      for (let i = 0; i < adminTotalPages; i++) {
+        html += `<button class="page-num${i === adminPageIndex ? " active" : ""}" data-idx="${i}">${i + 1}</button>`;
+      }
+    } else {
+      html = adminPages.map((_, i) => `<button class="page-num${i === adminPageIndex ? " active" : ""}" data-idx="${i}">${i + 1}</button>`).join("");
+      if (hasNext) {
+        const nextNum = adminPages.length + 1;
+        html += `<button class="page-num" data-idx="${adminPages.length}">${nextNum}</button>`;
+      }
     }
     pn.innerHTML = html;
   }
@@ -100,15 +110,26 @@ function updateAdminPagerUI() {
 }
 
 async function adminNextPage() {
-  const hasNext = !!adminCursors[adminPageIndex];
+  const hasNext = adminTotalPages > 0 ? (adminPageIndex + 1 < adminTotalPages) : !!adminCursors[adminPageIndex];
   if (!hasNext) return;
-  const tokenNext = adminCursors[adminPageIndex];
   if (adminPages[adminPageIndex + 1]) {
     adminPageIndex += 1;
     render(adminPages[adminPageIndex]);
     updateAdminPagerUI();
     return;
   }
+  if (adminD1Bound && adminTotalPages > 0) {
+    const offsetToken = `d1:${(adminPageIndex + 1) * adminPageSize}`;
+    const { items, nextCursor } = await fetchAdminPage(offsetToken);
+    adminPages[adminPageIndex + 1] = items;
+    adminCursors[adminPageIndex + 1] = nextCursor;
+    adminPageIndex += 1;
+    render(items);
+    updateAdminPagerUI();
+    return;
+  }
+  const tokenNext = adminCursors[adminPageIndex];
+  if (!tokenNext) return;
   const { items, nextCursor } = await fetchAdminPage(tokenNext);
   adminPages.push(items);
   adminCursors.push(nextCursor);
@@ -272,7 +293,19 @@ function bind() {
         updateAdminPagerUI();
         return;
       }
-      adminNextPage();
+      if (adminD1Bound && adminTotalPages > 0) {
+        const offsetToken = `d1:${idx * adminPageSize}`;
+        (async () => {
+          const { items, nextCursor } = await fetchAdminPage(offsetToken);
+          adminPages[idx] = items;
+          adminCursors[idx] = nextCursor;
+          adminPageIndex = idx;
+          render(items);
+          updateAdminPagerUI();
+        })();
+      } else {
+        adminNextPage();
+      }
     });
   }
   const prevBtnB = el("#adminPrevBottom");
@@ -292,7 +325,19 @@ function bind() {
         updateAdminPagerUI();
         return;
       }
-      adminNextPage();
+      if (adminD1Bound && adminTotalPages > 0) {
+        const offsetToken = `d1:${idx * adminPageSize}`;
+        (async () => {
+          const { items, nextCursor } = await fetchAdminPage(offsetToken);
+          adminPages[idx] = items;
+          adminCursors[idx] = nextCursor;
+          adminPageIndex = idx;
+          render(items);
+          updateAdminPagerUI();
+        })();
+      } else {
+        adminNextPage();
+      }
     });
   }
   el("#lightbox").addEventListener("click", () => {
@@ -311,6 +356,20 @@ function init() {
       try {
         await loadSettings();
         await resetAdminPagination();
+        try {
+          const e = await fetch("/api/env?test=1");
+          if (e.ok) {
+            const ej = await e.json();
+            adminD1Bound = !!ej?.d1_bound;
+          }
+          const r = await fetch("/api/count");
+          if (r.ok) {
+            const j = await r.json();
+            adminTotalCount = Number(j?.count || 0);
+            adminTotalPages = adminTotalCount > 0 ? Math.ceil(adminTotalCount / adminPageSize) : 0;
+            updateAdminPagerUI();
+          }
+        } catch {}
         el("#loginStatus").textContent = "";
         const box = document.querySelector(".login");
         if (box) box.classList.add("hidden");
