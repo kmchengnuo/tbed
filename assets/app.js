@@ -48,10 +48,10 @@ function lazyLoadImages() {
 }
 
 function computePageSize() {
-  if (window.matchMedia && window.matchMedia("(max-width: 640px)").matches) {
-    return 10;
-  }
-  return 21;
+  const b = document.querySelector(".pager.bottom-only");
+  const shown = b ? (window.getComputedStyle(b).display !== "none") : false;
+  const mobile = shown || (window.matchMedia && window.matchMedia("(max-width: 640px)").matches);
+  return mobile ? 10 : 21;
 }
 function updatePagerUI() {
   const info = el("#pageInfo");

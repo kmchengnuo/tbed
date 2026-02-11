@@ -29,62 +29,7 @@ export async function onRequestPost({ request, env }) {
     const ab = await file.arrayBuffer();
     const blob = new Blob([ab], { type: file.type || "image/jpeg" });
     tgForm.append("file", blob, file.name || "image.jpg");
-    const hosts = ["https://telegra.ph/upload", "https://te.legra.ph/upload", "https://graph.org/upload"];
-    let res = null;
-    let lastErr = "";
-    for (const h of hosts) {
-      const r = await fetch(h, { method: "POST", body: tgForm, headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" } });
-      if (r.ok) {
-        res = { r, host: h.split("/upload")[0] };
-        break;
-      } else {
-        lastErr = await r.text().catch(() => "");
-      }
-    }
-    let url = "";
-    if (!res) {
-      // 最终回退：使用 Telegram 文件直链作为图床
-      if (env.TGBOT && env.TGGROUP) {
-        const td = new FormData();
-        td.append("chat_id", env.TGGROUP);
-        td.append("document", blob, file.name || "image.jpg");
-        const sendDoc = await fetch(`https://api.telegram.org/bot${env.TGBOT}/sendDocument`, { method: "POST", body: td });
-        if (!sendDoc.ok) {
-          const msg = await sendDoc.text().catch(() => "");
-          return new Response(JSON.stringify({ error: "Telegram 回退上传失败", detail: msg || "Unknown error" }), { status: 502, headers: { "Content-Type": "application/json" } });
-        }
-        const sendJson = await sendDoc.json().catch(() => null);
-        const fid = sendJson?.result?.document?.file_id;
-        if (!fid) {
-          return new Response(JSON.stringify({ error: "Telegram 返回异常，缺少 file_id" }), { status: 502, headers: { "Content-Type": "application/json" } });
-        }
-        const gf = await fetch(`https://api.telegram.org/bot${env.TGBOT}/getFile?file_id=${encodeURIComponent(fid)}`);
-        const gfJson = await gf.json().catch(() => null);
-        const fpath = gfJson?.result?.file_path;
-        if (!fpath) {
-          return new Response(JSON.stringify({ error: "Telegram 返回异常，缺少 file_path" }), { status: 502, headers: { "Content-Type": "application/json" } });
-        }
-        url = `https://api.telegram.org/file/bot${env.TGBOT}/${fpath}`;
-      } else {
-        return new Response(JSON.stringify({ error: "Telegraph 上传失败", detail: lastErr || "Unknown error" }), { status: 502, headers: { "Content-Type": "application/json" } });
-      }
-    } else {
-      let json;
-      try {
-        json = await res.r.json();
-      } catch {
-        const txt = await res.r.text().catch(() => "");
-        return new Response(JSON.stringify({ error: "Telegraph 返回异常", detail: txt || "Unknown error" }), { status: 502, headers: { "Content-Type": "application/json" } });
-      }
-      if (!Array.isArray(json) && json?.error) {
-        return new Response(JSON.stringify({ error: "Telegraph 上传失败", detail: json.error }), { status: 502, headers: { "Content-Type": "application/json" } });
-      }
-      if (!Array.isArray(json) || !json[0]?.src) {
-        return new Response(JSON.stringify({ error: "Telegraph 返回异常" }), { status: 502, headers: { "Content-Type": "application/json" } });
-      }
-      url = `${res.host}${json[0].src}`;
-    }
-
+    // 是否开启过滤（若开启，必须先审核再上传/推送）
     let filterEnabled = false;
     if (env?.kv) {
       const fv = await env.kv.get("settings:filter_enabled");
@@ -119,12 +64,12 @@ export async function onRequestPost({ request, env }) {
       const apiKey = keys.length ? keys[Math.min(idx, keys.length - 1)] : (env.SIGHTENGINE_KEY || "");
       if (apiUser && apiKey) {
         try {
-          const usp = new URLSearchParams();
-          usp.set("models", "nudity");
-          usp.set("url", url);
-          usp.set("api_user", String(apiUser));
-          usp.set("api_secret", String(apiKey));
-          const r = await fetch(`https://api.sightengine.com/1.0/check.json?${usp.toString()}`, { headers: { "Accept": "application/json" } });
+          const fd = new FormData();
+          fd.append("media", blob, file.name || "image.jpg");
+          fd.append("models", "nudity");
+          fd.append("api_user", String(apiUser));
+          fd.append("api_secret", String(apiKey));
+          const r = await fetch(`https://api.sightengine.com/1.0/check.json`, { method: "POST", body: fd });
           if (r.ok) {
             const j = await r.json().catch(() => null);
             if (j && j.nudity) {
@@ -142,6 +87,63 @@ export async function onRequestPost({ request, env }) {
         return new Response(JSON.stringify({ error: "图片不符合社区规范", detail }), { status: 415, headers: { "Content-Type": "application/json" } });
       }
     }
+    const hosts = ["https://telegra.ph/upload", "https://te.legra.ph/upload", "https://graph.org/upload"];
+    let res = null;
+    let lastErr = "";
+    for (const h of hosts) {
+      const r = await fetch(h, { method: "POST", body: tgForm, headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" } });
+      if (r.ok) {
+        res = { r, host: h.split("/upload")[0] };
+        break;
+      } else {
+        lastErr = await r.text().catch(() => "");
+      }
+    }
+    let url = "";
+    let pushed = false;
+    if (!res) {
+      // 最终回退：使用 Telegram 文件直链作为图床（仅在过滤通过后执行；此路径会同时推送）
+      if (env.TGBOT && env.TGGROUP) {
+        const td = new FormData();
+        td.append("chat_id", env.TGGROUP);
+        td.append("document", blob, file.name || "image.jpg");
+        const sendDoc = await fetch(`https://api.telegram.org/bot${env.TGBOT}/sendDocument`, { method: "POST", body: td });
+        if (!sendDoc.ok) {
+          const msg = await sendDoc.text().catch(() => "");
+          return new Response(JSON.stringify({ error: "Telegram 回退上传失败", detail: msg || "Unknown error" }), { status: 502, headers: { "Content-Type": "application/json" } });
+        }
+        const sendJson = await sendDoc.json().catch(() => null);
+        const fid = sendJson?.result?.document?.file_id;
+        if (!fid) {
+          return new Response(JSON.stringify({ error: "Telegram 返回异常，缺少 file_id" }), { status: 502, headers: { "Content-Type": "application/json" } });
+        }
+        const gf = await fetch(`https://api.telegram.org/bot${env.TGBOT}/getFile?file_id=${encodeURIComponent(fid)}`);
+        const gfJson = await gf.json().catch(() => null);
+        const fpath = gfJson?.result?.file_path;
+        if (!fpath) {
+          return new Response(JSON.stringify({ error: "Telegram 返回异常，缺少 file_path" }), { status: 502, headers: { "Content-Type": "application/json" } });
+        }
+        url = `https://api.telegram.org/file/bot${env.TGBOT}/${fpath}`;
+        pushed = true;
+      } else {
+        return new Response(JSON.stringify({ error: "Telegraph 上传失败", detail: lastErr || "Unknown error" }), { status: 502, headers: { "Content-Type": "application/json" } });
+      }
+    } else {
+      let json;
+      try {
+        json = await res.r.json();
+      } catch {
+        const txt = await res.r.text().catch(() => "");
+        return new Response(JSON.stringify({ error: "Telegraph 返回异常", detail: txt || "Unknown error" }), { status: 502, headers: { "Content-Type": "application/json" } });
+      }
+      if (!Array.isArray(json) && json?.error) {
+        return new Response(JSON.stringify({ error: "Telegraph 上传失败", detail: json.error }), { status: 502, headers: { "Content-Type": "application/json" } });
+      }
+      if (!Array.isArray(json) || !json[0]?.src) {
+        return new Response(JSON.stringify({ error: "Telegraph 返回异常" }), { status: 502, headers: { "Content-Type": "application/json" } });
+      }
+      url = `${res.host}${json[0].src}`;
+    }
 
     const id = crypto.randomUUID();
     const ts = Date.now();
@@ -158,7 +160,7 @@ export async function onRequestPost({ request, env }) {
       await env.kv.put(`image_meta:${id}`, JSON.stringify({ ip }));
     }
 
-    if (env.TGBOT && env.TGGROUP) {
+    if (env.TGBOT && env.TGGROUP && !pushed) {
       await fetch(`https://api.telegram.org/bot${env.TGBOT}/sendPhoto`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

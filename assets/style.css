@@ -135,32 +135,39 @@ html, body {
 }
 
 @media (max-width: 640px) {
-  .pager.bottom-only { display: block; border-top: 1px solid var(--border); }
-  .pager:not(.bottom-only) { display: none; }
+  .pager.bottom-only { display: block !important; border-top: 1px solid var(--border); }
+  .pager:not(.bottom-only) { display: none !important; }
   .pager-bar {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
   }
-  #pageInfo, #adminPageInfo {
+  #pageInfoBottom {
     grid-column: 1 / -1;
     text-align: center;
     margin: 2px 0;
     font-size: 14px;
   }
-  .pager .btn {
+  .pager.bottom-only .btn {
     padding: 10px 0;
     font-size: 14px;
     border-radius: 10px;
     width: 100%;
   }
-  .page-numbers {
+  .pager.bottom-only .page-numbers {
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
   }
-  .page-num {
-    padding: 8px 12px;
-    border-radius: 8px;
+  .pager.bottom-only .page-num {
+    width: 36px;
+    height: 28px;
+    padding: 0;
+    border-radius: 6px;
+  }
+  .pager.bottom-only .page-num.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 0 1px rgba(79,140,255,.35) inset;
   }
 }
 .tab-btn {
