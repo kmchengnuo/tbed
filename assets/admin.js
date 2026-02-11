@@ -77,7 +77,7 @@ function bind() {
       token = "";
     }
   });
-  el("#allowUpload").addEventListener("change", async (ev) => {
+  el("#allowUpload").addEventListener("input", async (ev) => {
     const checked = ev.target.checked;
     const st = el("#settingsStatus");
     st.textContent = "保存中...";
@@ -95,7 +95,7 @@ function bind() {
       setTimeout(() => st.textContent = "", 2000);
     }
   });
-  el("#filterEnable").addEventListener("change", async (ev) => {
+  el("#filterEnable").addEventListener("input", async (ev) => {
     const checked = ev.target.checked;
     const st = el("#settingsStatus");
     st.textContent = "保存中...";
