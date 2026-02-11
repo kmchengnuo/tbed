@@ -34,7 +34,7 @@ function renderGallery(items, reset = true) {
     const isLiked = liked.includes(item.id);
     return `
       <article class="card" data-id="${item.id}">
-        <img src="/api/i/${item.id}?w=640&q=75" alt="image" loading="lazy">
+        <img class="lazy" data-src="/api/i/${item.id}?w=480&q=65" alt="image" loading="lazy" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==">
         <div class="meta">
           <span class="time">${formatTime(item.ts)}</span>
           <div class="actions">
@@ -49,6 +49,7 @@ function renderGallery(items, reset = true) {
   } else {
     el("#gallery").insertAdjacentHTML("beforeend", html);
   }
+  lazyLoadImages();
 }
 
 function setActiveTab(sort) {
@@ -149,6 +150,24 @@ function bindEvents() {
     }
   });
   io.observe(sentinel);
+
+  const imgObserver = new IntersectionObserver((entries, obs) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        const src = img.getAttribute("data-src");
+        if (src) {
+          img.src = src;
+          img.removeAttribute("data-src");
+          img.classList.remove("lazy");
+          obs.unobserve(img);
+        }
+      }
+    });
+  }, { rootMargin: "200px 0px" });
+  function lazyLoadImages() {
+    els("img.lazy").forEach(img => imgObserver.observe(img));
+  }
   const showPreview = (file) => {
     const reader = new FileReader();
     reader.onload = () => {

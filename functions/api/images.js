@@ -23,7 +23,7 @@ export async function onRequestGet({ request, env }) {
         .all();
       results = (results || []).map(r => ({ ...r, url: `/api/i/${r.id}` }));
       const next = results.length === limit ? `d1:${offset + results.length}` : "";
-      const headers = new Headers({ "Content-Type": "application/json", "Cache-Control": "public, max-age=30" });
+      const headers = new Headers({ "Content-Type": "application/json", "Cache-Control": "public, max-age=60" });
       if (next) headers.set("X-Next-Cursor", next);
       const res = new Response(JSON.stringify(results), { headers });
       await cache.put(request, res.clone());
@@ -53,14 +53,14 @@ export async function onRequestGet({ request, env }) {
     }
 
       const nextCursor = list?.cursor && !list?.list_complete ? `kv:${list.cursor}` : "";
-      const headers = new Headers({ "Content-Type": "application/json", "Cache-Control": "public, max-age=30" });
+      const headers = new Headers({ "Content-Type": "application/json", "Cache-Control": "public, max-age=60" });
       if (nextCursor) headers.set("X-Next-Cursor", nextCursor);
       const res = new Response(JSON.stringify(items), { headers });
       await cache.put(request, res.clone());
       return res;
     }
 
-    const res = new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=30" } });
+    const res = new Response(JSON.stringify([]), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=60" } });
     await cache.put(request, res.clone());
     return res;
   } catch (e) {
