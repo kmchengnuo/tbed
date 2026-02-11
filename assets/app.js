@@ -70,7 +70,7 @@ function renderGallery(items, reset = true) {
           <span class="time">${formatTime(item.ts)}</span>
           <div class="actions">
             <a class="download" href="${addCb(`/api/i/${item.id}.${item.ext || "jpg"}`)}" download="img-${item.id}.${item.ext || "jpg"}">下载</a>
-            <button class="share" data-id="${item.id}" data-ext="${item.ext || "jpg"}">分享</button>
+            <a class="download share" href="${addCb(`/api/i/${item.id}.${item.ext || "jpg"}`)}" data-id="${item.id}" data-ext="${item.ext || "jpg"}">分享</a>
             <button class="like ${isLiked ? "liked" : ""}" data-id="${item.id}">❤️ <span class="count">${item.likes}</span></button>
           </div>
         </div>
@@ -134,13 +134,14 @@ function bindEvents() {
       const id = btn.dataset.id;
       like(id, btn);
     }
-    const shareBtn = ev.target.closest(".share");
-    if (shareBtn) {
-      const id = shareBtn.dataset.id;
-      const ext = shareBtn.dataset.ext || "jpg";
+    const shareLink = ev.target.closest("a.share");
+    if (shareLink) {
+      ev.preventDefault();
+      const id = shareLink.dataset.id;
+      const ext = shareLink.dataset.ext || "jpg";
       const link = window.location.origin + addCb(`/api/i/${id}.${ext}`);
-      const text = shareBtn.textContent;
-      shareBtn.disabled = true;
+      const text = shareLink.textContent;
+      shareLink.classList.add("disabled");
       Promise.resolve().then(async () => {
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -153,10 +154,10 @@ function bindEvents() {
             document.execCommand("copy");
             document.body.removeChild(ta);
           }
-          shareBtn.textContent = "已复制";
-          setTimeout(() => { shareBtn.textContent = text; }, 1500);
+          shareLink.textContent = "已复制";
+          setTimeout(() => { shareLink.textContent = text; }, 1500);
         } finally {
-          shareBtn.disabled = false;
+          shareLink.classList.remove("disabled");
         }
       });
       return;
