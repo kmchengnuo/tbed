@@ -139,11 +139,11 @@ html, body {
   .pager:not(.bottom-only) { display: none !important; }
   .pager-bar {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr auto 1fr;
     gap: 10px;
   }
   #pageInfoBottom {
-    grid-column: 1 / -1;
+    grid-column: 2;
     text-align: center;
     margin: 2px 0;
     font-size: 14px;
