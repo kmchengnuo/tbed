@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
+    "predev": "node tools/safe-check.mjs",
+    "prelint": "node tools/safe-check.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "db:prepare": "wrangler d1 execute db --local --file d1/schema.sql",

@@ -25,6 +25,18 @@ module.exports = [
     rules: {
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^unused" }],
       "no-undef": "warn",
+      "no-restricted-imports": ["error", {
+        "paths": [
+          { "name": "http", "message": "禁止使用 Node 原生命令 http" },
+          { "name": "net", "message": "禁止使用 Node 原生命令 net" },
+          { "name": "tls", "message": "禁止使用 Node 原生命令 tls" },
+          { "name": "dgram", "message": "禁止使用 Node 原生命令 dgram" },
+          { "name": "child_process", "message": "禁止使用 Node 原生命令 child_process" },
+          { "name": "fs", "message": "禁止使用 Node 原生命令 fs" },
+          { "name": "fs/promises", "message": "禁止使用 Node 原生命令 fs/promises" },
+          { "name": "os", "message": "禁止使用 Node 原生命令 os" }
+        ]
+      }],
     },
   },
 ];

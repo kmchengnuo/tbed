@@ -27,8 +27,16 @@ export async function onRequestPost({ request, env }) {
 
     const tgForm = new FormData();
     const ab = await file.arrayBuffer();
-    const blob = new Blob([ab], { type: file.type || "image/jpeg" });
-    tgForm.append("file", blob, file.name || "image.jpg");
+    const view = new Uint8Array(ab);
+    const isJpeg = view.length > 3 && view[0] === 0xFF && view[1] === 0xD8 && view[2] === 0xFF;
+    const isPng = view.length > 8 && view[0] === 0x89 && view[1] === 0x50 && view[2] === 0x4E && view[3] === 0x47 && view[4] === 0x0D && view[5] === 0x0A && view[6] === 0x1A && view[7] === 0x0A;
+    if (!isJpeg && !isPng) {
+      return new Response(JSON.stringify({ error: "文件内容不是有效图片" }), { status: 415, headers: { "Content-Type": "application/json" } });
+    }
+    const realMime = isPng ? "image/png" : "image/jpeg";
+    const safeName = isPng ? "image.png" : "image.jpg";
+    const blob = new Blob([ab], { type: realMime });
+    tgForm.append("file", blob, safeName);
     // 是否开启过滤（若开启，必须先审核再上传/推送）
     let filterEnabled = false;
     if (env?.kv) {
@@ -106,7 +114,7 @@ export async function onRequestPost({ request, env }) {
       if (env.TGBOT && env.TGGROUP) {
         const td = new FormData();
         td.append("chat_id", env.TGGROUP);
-        td.append("document", blob, file.name || "image.jpg");
+        td.append("document", blob, safeName);
         const sendDoc = await fetch(`https://api.telegram.org/bot${env.TGBOT}/sendDocument`, { method: "POST", body: td });
         if (!sendDoc.ok) {
           const msg = await sendDoc.text().catch(() => "");
